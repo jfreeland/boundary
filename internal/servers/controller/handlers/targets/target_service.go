@@ -1080,30 +1080,21 @@ func (s Service) AuthorizeSession(ctx context.Context, req *pbs.AuthorizeSession
 
 		case credential.ApplicationPurpose:
 			l := c.Library()
-			secret := c.Secret()
+			decoded, err := decodeCredential(ctx, c)
+			if err != nil {
+				return nil, errors.Wrap(ctx, err, op, errors.WithMsg("error decoding credential"))
+			}
 			// TODO: Access the json directly from the vault response instead of re-marshalling it.
-			jSecret, err := json.Marshal(secret)
+			raw, err := json.Marshal(c.Secret())
 			if err != nil {
 				return nil, errors.Wrap(ctx, err, op, errors.WithMsg("marshalling secret to json"))
 			}
-			var sSecret *structpb.Struct
-			switch secret.(type) {
-			case map[string]interface{}:
-				// In this case we actually have to re-decode it. The proto wrappers
-				// choke on json.Number and at the time I'm writing this I don't
-				// have time to write a walk function to dig through with reflect
-				// and find all json.Numbers and replace them. So we eat the
-				// inefficiency. So note that we are specifically _not_ using a
-				// decoder with UseNumber here.
-				var dSecret map[string]interface{}
-				if err := json.Unmarshal(jSecret, &dSecret); err != nil {
-					return nil, errors.Wrap(ctx, err, op, errors.WithMsg("decoding json for proto marshaling"))
-				}
-				sSecret, err = structpb.NewStruct(dSecret)
-				if err != nil {
-					return nil, errors.Wrap(ctx, err, op, errors.WithMsg("creating proto struct for secret"))
-				}
+
+			var credType string
+			if l.CredentialType() != credential.UnspecifiedType {
+				credType = string(l.CredentialType())
 			}
+
 			creds = append(creds, &pb.SessionCredential{
 				CredentialLibrary: &pb.CredentialLibrary{
 					Id:                l.GetPublicId(),
@@ -1120,9 +1111,10 @@ func (s Service) AuthorizeSession(ctx context.Context, req *pbs.AuthorizeSession
 					Type:              credential.SubtypeFromId(l.GetPublicId()).String(),
 				},
 				Secret: &pb.SessionSecret{
-					Raw:     base64.StdEncoding.EncodeToString(jSecret),
-					Decoded: sSecret,
+					Raw:     base64.StdEncoding.EncodeToString(raw),
+					Decoded: decoded,
 				},
+				Type: credType,
 			})
 
 		default:
@@ -2124,4 +2116,48 @@ func credentialToProto(ctx context.Context, cred credential.Credential) (*server
 	default:
 		return nil, errors.New(ctx, errors.InvalidParameter, op, fmt.Sprintf("unsupported credential %T", c))
 	}
+}
+
+func decodeCredential(ctx context.Context, cred credential.Credential) (*structpb.Struct, error) {
+	const op = "targets.decodeCredential"
+	dSecret := make(map[string]interface{})
+
+	switch c := cred.(type) {
+
+	case credential.UserPassword:
+		dSecret["username"] = c.Username()
+		dSecret["password"] = string(c.Password())
+
+	default:
+		// Credential is not typed, decode unspecified secret
+		secret := c.Secret()
+		switch secret.(type) {
+
+		case map[string]interface{}:
+			rawSecret, err := json.Marshal(secret)
+			if err != nil {
+				return nil, errors.Wrap(ctx, err, op, errors.WithMsg("marshalling secret to json"))
+			}
+			// In this case we actually have to re-decode it. The proto wrappers
+			// choke on json.Number and at the time I'm writing this I don't
+			// have time to write a walk function to dig through with reflect
+			// and find all json.Numbers and replace them. So we eat the
+			// inefficiency. So note that we are specifically _not_ using a
+			// decoder with UseNumber here.
+			if err := json.Unmarshal(rawSecret, &dSecret); err != nil {
+				return nil, errors.Wrap(ctx, err, op, errors.WithMsg("decoding json for proto marshaling"))
+			}
+
+		default:
+			// Credential is not valid for decoding. Do not return error, user
+			// can still intepret raw secret data.
+			return nil, nil
+		}
+	}
+
+	decoded, err := structpb.NewStruct(dSecret)
+	if err != nil {
+		return nil, errors.Wrap(ctx, err, op, errors.WithMsg("creating proto struct for secret"))
+	}
+	return decoded, nil
 }

@@ -80,6 +80,9 @@ message SessionCredential {
 
   // Output only. The secret of this credential base64 encoded.
   SessionSecret secret = 20;
+
+  // Output only. The type of the credential, empty if not specified.
+  string type = 30;
 }
 
 // Target contains all fields related to a Target resource

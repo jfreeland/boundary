@@ -5070,6 +5070,11 @@
           "$ref": "#/definitions/controller.api.resources.targets.v1.SessionSecret",
           "description": "Output only. The secret of this credential base64 encoded.",
           "readOnly": true
+        },
+        "type": {
+          "type": "string",
+          "description": "Output only. The type of the credential, empty if not specified.",
+          "readOnly": true
         }
       },
       "description": "Credential information for a session."

@@ -847,7 +847,7 @@ func printCustomActionOutputImpl(c *Command) (bool, error) {
 					}
 
 					ret = append(ret,
-						fmt.Sprintf("    Credential Store ID:            %s", cred.CredentialSource.CredentialStoreId),
+						fmt.Sprintf("    Credential Store ID:           %s", cred.CredentialSource.CredentialStoreId),
 						fmt.Sprintf("    Credential Source ID:          %s", cred.CredentialSource.Id),
 						fmt.Sprintf("    Credential Source Type:        %s", cred.CredentialSource.Type))
 
@@ -859,6 +859,11 @@ func printCustomActionOutputImpl(c *Command) (bool, error) {
 						ret = append(ret,
 							fmt.Sprintf("    Credential Source Description: %s", cred.CredentialSource.Description))
 					}
+					if cred.Type != "" {
+						ret = append(ret,
+							fmt.Sprintf("    Credential Type:               %s", cred.Type))
+					}
+
 					var secretStr []string
 					switch cred.CredentialSource.Type {
 					case "vault":

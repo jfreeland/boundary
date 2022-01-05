@@ -58,6 +58,9 @@ func generateCredentialTableOutputSlice(prefixIndent int, creds []*targets.Sessi
 		if crd.CredentialLibrary.Description != "" {
 			libMap["Credential Library Description"] = crd.CredentialLibrary.Description
 		}
+		if crd.Type != "" {
+			libMap["Credential Type"] = crd.Type
+		}
 		maxLength := base.MaxAttributesLength(libMap, nil, nil)
 		ret = append(ret,
 			fmt.Sprintf("%sCredentials:", prefixString),
